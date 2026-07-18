@@ -5,12 +5,15 @@ which is backed by a public Airtable shared view, and sends an ntfy.sh push
 notification when a new listing matches a company AND a role keyword from
 config.py.
 
-State (which record IDs have already been seen) is kept in state.json next
-to this script. On the very first run, all currently-listed rows are
-recorded as "seen" without notifying, so you don't get flooded with
-hundreds of alerts for pre-existing postings.
+State (which listings have already been seen, tracked by a stable job
+fingerprint -- see job_fingerprint() -- rather than Airtable's row id,
+which can be reassigned when the underlying table is rebuilt) is kept in
+state.json next to this script. On the very first run, all currently-listed
+rows are recorded as "seen" without notifying, so you don't get flooded
+with hundreds of alerts for pre-existing postings.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -25,6 +28,7 @@ import config
 EMBED_URL = "https://airtable.com/embed/app7O2uKT9GTvMx9J/shrWEq2l15qeODGG3?viewControls=on"
 VIEW_ID = "viwmu6qmHc7zxmSlB"
 STATE_FILE = Path(__file__).parent / "state.json"
+JOB_ID_RE = re.compile(r"/jobs/info/([a-f0-9]+)")
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -102,18 +106,34 @@ def fetch_rows() -> list[dict]:
             return resolve_choice(col_id, cells.get(col_id))
 
         apply_field = get("Apply") or {}
-        rows.append(
-            {
-                "id": row["id"],
-                "title": get("Position Title") or "",
-                "date": get("Date") or "",
-                "company": get("Company") or "",
-                "location": (get("Location") or "").split("\n")[0][:80],
-                "work_model": get("Work Model") or "",
-                "apply_url": apply_field.get("url") if isinstance(apply_field, dict) else None,
-            }
-        )
+        row_data = {
+            "id": row["id"],
+            "title": get("Position Title") or "",
+            "date": get("Date") or "",
+            "company": get("Company") or "",
+            "location": (get("Location") or "").split("\n")[0][:80],
+            "work_model": get("Work Model") or "",
+            "apply_url": apply_field.get("url") if isinstance(apply_field, dict) else None,
+        }
+        row_data["fingerprint"] = job_fingerprint(row_data)
+        rows.append(row_data)
     return rows
+
+
+def job_fingerprint(row: dict) -> str:
+    """A stable identity for a listing, independent of Airtable's row id.
+
+    Sites like this often periodically rebuild their underlying Airtable
+    rows, which reassigns row ids to postings that haven't actually
+    changed. The apply link embeds the job board's own internal id
+    (e.g. jobright.ai/jobs/info/<id>), which stays stable across those
+    rebuilds, so we prefer that over the Airtable row id for dedup.
+    """
+    match = JOB_ID_RE.search(row.get("apply_url") or "")
+    if match:
+        return "job:" + match.group(1)
+    basis = f"{row['title'].strip().lower()}|{row['company'].strip().lower()}|{row['location'].strip().lower()}"
+    return "hash:" + hashlib.sha256(basis.encode()).hexdigest()[:16]
 
 
 def matches(row: dict) -> bool:
@@ -159,9 +179,9 @@ def main() -> None:
 
     new_matches = []
     for row in rows:
-        if row["id"] in seen_ids:
+        if row["fingerprint"] in seen_ids:
             continue
-        seen_ids.add(row["id"])
+        seen_ids.add(row["fingerprint"])
         if not first_run and matches(row):
             new_matches.append(row)
 
