@@ -42,6 +42,7 @@
     "job:69deadf936823d1b425831bc",
     "job:69e1479cfd1c0456f3fad78b",
     "job:69e32f6cbe46fa3a4ef59852",
+    "job:69e7ae1b3aa0c4796439b4d4",
     "job:69e8e83fe0cd471b2f138c27",
     "job:69eb4bbb7820c036924f2d1b",
     "job:69ebfddcdc35f7132c4b4efd",
@@ -615,6 +616,10 @@
     "job:6a5de069f3674a0545d25ac9",
     "job:6a5de25767b2850e77dede4b",
     "job:6a5df4cb95356634d79e2e26",
-    "job:6a5df4f027bf767ea68f41c2"
+    "job:6a5df4f027bf767ea68f41c2",
+    "job:6a5df78a27bf767ea68f42d8",
+    "job:6a5df7a095356634d79e2fae",
+    "job:6a5df7c3f3674a0545d267ea",
+    "job:6a5e09ab050c423c792ecfa2"
   ]
 }
